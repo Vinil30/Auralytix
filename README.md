@@ -500,11 +500,8 @@ Each platform has a primary method and a fallback path.
 
 
 
-## Production Upgrade Path
 
-At larger scale, the main bottlenecks would be in-memory sessions, local ChromaDB, transcription throughput, and a single backend instance.
-
-Recommended future upgrades:
+# Recommended future upgrades:
 Adding a additional web searching tool to search current trends, which is not necessary as of now for this.
 
 The code is split so these upgrades can be introduced without rewriting the product flow.
