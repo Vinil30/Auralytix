@@ -41,6 +41,10 @@ function formatDuration(seconds) {
   const m = Math.floor(seconds / 60), s = Math.round(seconds % 60);
   return `${m}:${String(s).padStart(2, "0")}`;
 }
+function formatEngagementRate(value) {
+  if (value === null || value === undefined || value === "") return "N/A";
+  return `${value}%`;
+}
 
 // â”€â”€â”€ Icons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const PlatformIcon = ({ platform, size = 16 }) => {
@@ -348,7 +352,7 @@ const MetricsModal = ({ metrics, metadata }) => {
     { icon: "C", label: "Comments", value: formatMetric(metrics?.comments) },
     { icon: "T", label: "Duration", value: formatDuration(metrics?.duration_seconds) },
     { icon: "D", label: "Upload Date", value: formatMetric(metrics?.upload_date) },
-    { icon: "%", label: "Engagement", value: metrics?.engagement_rate ? `${metrics.engagement_rate}%` : "N/A" },
+    { icon: "%", label: "Engagement", value: formatEngagementRate(metrics?.engagement_rate) },
   ];
   const meta = [
     { label: "Channel", value: metadata?.channel || metrics?.channel },
@@ -697,14 +701,14 @@ export default function App() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&family=Syne:wght@400;600;700;800&display=swap');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: #050916; font-family: Syne, 'Segoe UI', sans-serif; color: #F1F5F9; -webkit-font-smoothing: antialiased; }
         input, button { font-family: inherit; }
         .chatbot-panel,
         .chatbot-panel input,
         .chatbot-panel button {
-          font-family: Aptos, 'Aptos Display', 'Segoe UI', sans-serif;
+          font-family: 'Inter', sans-serif;
         }
 
         ::-webkit-scrollbar { width: 5px; height: 5px; }
@@ -1111,12 +1115,14 @@ export default function App() {
                 />
               </div>
 
-              {/* Row 2: 4 metric tiles in a single horizontal row */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "14px", marginBottom: "14px" }}>
+              {/* Row 2: 6 metric tiles in a single horizontal row */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(6,minmax(0,1fr))", gap: "14px", marginBottom: "14px" }}>
                 <MetricTile emoji="V" label="Video A - Views" value={videoAData.metrics?.views}  accent="#2563EB"/>
                 <MetricTile emoji="L" label="Video A - Likes" value={videoAData.metrics?.likes}  accent="#DC2626"/>
+                <MetricTile emoji="%" label="Video A - Engagement" value={formatEngagementRate(videoAData.metrics?.engagement_rate)} accent="#0891B2"/>
                 <MetricTile emoji="V" label="Video B - Views" value={videoBData.metrics?.views}  accent="#7C3AED"/>
                 <MetricTile emoji="L" label="Video B - Likes" value={videoBData.metrics?.likes}  accent="#059669"/>
+                <MetricTile emoji="%" label="Video B - Engagement" value={formatEngagementRate(videoBData.metrics?.engagement_rate)} accent="#CA8A04"/>
               </div>
 
               {/* Analysis deck */}
