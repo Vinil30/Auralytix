@@ -1,14 +1,70 @@
 import chromadb
+import logging
+import shutil
+from datetime import datetime
+from pathlib import Path
+from chromadb.api.shared_system_client import SharedSystemClient
 from chromadb.api.models.Collection import Collection
+from chromadb.config import Settings
 
 
 KNOWLEDGE_BASE_COLLECTION = "knowledge_base"
 SOCIAL_CONTENT_COLLECTION = "social_content"
+CHROMA_DB_PATH = Path(__file__).resolve().parents[1] / "chroma_db"
+logger = logging.getLogger(__name__)
 
 
 _client = None
 _knowledge_collection = None
 _content_collection = None
+
+
+def _create_chroma_client() -> chromadb.PersistentClient:
+    return chromadb.PersistentClient(
+        path=str(CHROMA_DB_PATH),
+        settings=Settings(
+            anonymized_telemetry=False
+        )
+    )
+
+
+def _backup_chroma_db(reason: BaseException) -> Path | None:
+    """
+    Move an unreadable Chroma store aside before creating a fresh one.
+    """
+
+    if not CHROMA_DB_PATH.exists():
+        return None
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_path = CHROMA_DB_PATH.with_name(
+        f"{CHROMA_DB_PATH.name}_backup_{timestamp}"
+    )
+
+    suffix = 1
+    while backup_path.exists():
+        backup_path = CHROMA_DB_PATH.with_name(
+            f"{CHROMA_DB_PATH.name}_backup_{timestamp}_{suffix}"
+        )
+        suffix += 1
+
+    logger.warning(
+        "ChromaDB failed to start from %s (%s). Backing it up to %s.",
+        CHROMA_DB_PATH,
+        reason,
+        backup_path
+    )
+
+    shutil.move(
+        str(CHROMA_DB_PATH),
+        str(backup_path)
+    )
+    CHROMA_DB_PATH.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
+    return backup_path
 
 
 def get_chroma_client() -> chromadb.PersistentClient:
@@ -19,9 +75,15 @@ def get_chroma_client() -> chromadb.PersistentClient:
     global _client
 
     if _client is None:
-        _client = chromadb.PersistentClient(
-            path="./chroma_db"
-        )
+        try:
+            _client = _create_chroma_client()
+        except BaseException as exc:
+            if isinstance(exc, (KeyboardInterrupt, SystemExit)):
+                raise
+
+            _backup_chroma_db(exc)
+            SharedSystemClient.clear_system_cache()
+            _client = _create_chroma_client()
 
     return _client
 
