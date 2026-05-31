@@ -77,6 +77,13 @@ class InstagramExtractor:
                 2
             )
 
+        follower_count = None
+
+        try:
+            follower_count = post.owner_profile.followers
+        except Exception:
+            follower_count = None
+
         return {
             "platform": "instagram",
             "shortcode": post.shortcode,
@@ -86,6 +93,7 @@ class InstagramExtractor:
             "mentions": post.caption_mentions,
             "owner_username": post.owner_username,
             "owner_id": post.owner_id,
+            "follower_count": follower_count,
             "likes": likes,
             "comments": comments,
             "views": views,
@@ -199,6 +207,7 @@ class InstagramExtractor:
             )
 
             result["transcript"] = transcript
+            result["hook_text"] = transcript[:500]
             result["transcript_available"] = True
 
         return result
