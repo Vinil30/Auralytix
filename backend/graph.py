@@ -45,7 +45,17 @@ except ImportError:
 # MODELS
 # ============================================================
 
-text_model = TextModel()
+_text_model = None
+
+
+def get_text_model() -> TextModel:
+
+    global _text_model
+
+    if _text_model is None:
+        _text_model = TextModel()
+
+    return _text_model
 
 
 # ============================================================
@@ -111,7 +121,7 @@ def load_session(state: GraphState):
 @traceable(name="classify_query", run_type="chain")
 def classify_query(state: GraphState):
 
-    classification = text_model.classify_query(
+    classification = get_text_model().classify_query(
         state["user_query"]
     )
 
@@ -199,7 +209,7 @@ def generate_response(state: GraphState):
     if classification.intent.value == "comparison":
         generation_path = "comparison"
 
-        response = text_model.compare_content(
+        response = get_text_model().compare_content(
             video_a_data=session_data.get("video_a_data") or session_data["youtube_data"],
             video_b_data=session_data.get("video_b_data") or session_data["instagram_data"],
             question=query
@@ -213,7 +223,7 @@ def generate_response(state: GraphState):
     elif classification.use_rag:
         generation_path = "rag_answer"
 
-        response = text_model.answer_question_with_rag(
+        response = get_text_model().answer_question_with_rag(
             question=query,
             session_context=session_data,
             retrieved_context=state["retrieved_context"],
@@ -222,7 +232,7 @@ def generate_response(state: GraphState):
 
     else:
 
-        response = text_model.answer_question(
+        response = get_text_model().answer_question(
             question=query,
             session_context=session_data
         )
