@@ -11,3 +11,5 @@ pydantic
 yt-dlp
 youtube-transcript-api
 instaloader
+langsmith
+langchain
