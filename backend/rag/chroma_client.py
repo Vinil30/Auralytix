@@ -1,11 +1,8 @@
-import chromadb
 import logging
 import shutil
 from datetime import datetime
 from pathlib import Path
-from chromadb.api.shared_system_client import SharedSystemClient
-from chromadb.api.models.Collection import Collection
-from chromadb.config import Settings
+from typing import Any
 
 
 KNOWLEDGE_BASE_COLLECTION = "knowledge_base"
@@ -19,7 +16,10 @@ _knowledge_collection = None
 _content_collection = None
 
 
-def _create_chroma_client() -> chromadb.PersistentClient:
+def _create_chroma_client():
+    import chromadb
+    from chromadb.config import Settings
+
     return chromadb.PersistentClient(
         path=str(CHROMA_DB_PATH),
         settings=Settings(
@@ -67,7 +67,7 @@ def _backup_chroma_db(reason: BaseException) -> Path | None:
     return backup_path
 
 
-def get_chroma_client() -> chromadb.PersistentClient:
+def get_chroma_client():
     """
     Return the singleton ChromaDB client.
     """
@@ -81,6 +81,8 @@ def get_chroma_client() -> chromadb.PersistentClient:
             if isinstance(exc, (KeyboardInterrupt, SystemExit)):
                 raise
 
+            from chromadb.api.shared_system_client import SharedSystemClient
+
             _backup_chroma_db(exc)
             SharedSystemClient.clear_system_cache()
             _client = _create_chroma_client()
@@ -88,7 +90,7 @@ def get_chroma_client() -> chromadb.PersistentClient:
     return _client
 
 
-def get_knowledge_collection() -> Collection:
+def get_knowledge_collection() -> Any:
     """
     Return the knowledge base collection.
     """
@@ -105,7 +107,7 @@ def get_knowledge_collection() -> Collection:
     return _knowledge_collection
 
 
-def get_content_collection() -> Collection:
+def get_content_collection() -> Any:
     """
     Return the social content collection.
     """
