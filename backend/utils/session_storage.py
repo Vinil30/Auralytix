@@ -13,6 +13,8 @@ class SessionStore:
         session_id = str(uuid4())
 
         self.sessions[session_id] = {
+            "video_a_data": None,
+            "video_b_data": None,
             "youtube_data": None,
             "instagram_data": None,
             "comparison_result": None,

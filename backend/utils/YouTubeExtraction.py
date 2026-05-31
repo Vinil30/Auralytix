@@ -53,16 +53,32 @@ class YouTubeExtractor:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(video_url, download=False)
 
+        views = info.get("view_count") or 0
+        likes = info.get("like_count") or 0
+        comments = info.get("comment_count") or 0
+        engagement_rate = None
+
+        if views > 0:
+            engagement_rate = round(
+                ((likes + comments) / views) * 100,
+                2
+            )
+
         return {
             "video_id": info.get("id"),
             "title": info.get("title"),
             "channel": info.get("channel"),
             "channel_id": info.get("channel_id"),
+            "follower_count": (
+                info.get("channel_follower_count")
+                or info.get("subscriber_count")
+            ),
             "description": info.get("description"),
             "duration_seconds": info.get("duration"),
-            "view_count": info.get("view_count"),
-            "like_count": info.get("like_count"),
-            "comment_count": info.get("comment_count"),
+            "view_count": views,
+            "like_count": likes,
+            "comment_count": comments,
+            "engagement_rate": engagement_rate,
             "upload_date": info.get("upload_date"),
             "tags": info.get("tags", []),
             "categories": info.get("categories", []),
@@ -79,14 +95,30 @@ class YouTubeExtractor:
 
         video_id = YouTubeExtractor.extract_video_id(video_url)
 
-        transcript = YouTubeTranscriptApi.get_transcript(video_id)
+        transcript = YouTubeTranscriptApi().fetch(video_id)
 
         transcript_text = " ".join(
-            segment["text"]
+            segment.text
             for segment in transcript
         )
 
         return transcript_text
+
+    @staticmethod
+    def hook_extraction(video_url: str) -> str | None:
+
+        video_id = YouTubeExtractor.extract_video_id(video_url)
+        transcript = YouTubeTranscriptApi().fetch(video_id)
+
+        hook_segments = [
+            segment.text
+            for segment in transcript
+            if getattr(segment, "start", 0) < 5
+        ]
+
+        hook_text = " ".join(hook_segments).strip()
+
+        return hook_text or None
 
     # ============================================================
     # FALLBACK STARTS -----  AUDIO DOWNLOAD
@@ -190,11 +222,18 @@ class YouTubeExtractor:
         metadata = self.metadata_extraction(video_url)
 
         transcript_data = self.get_transcript(video_url)
+        hook_text = None
+
+        try:
+            hook_text = self.hook_extraction(video_url)
+        except Exception:
+            hook_text = transcript_data["transcript"][:500]
 
         return {
             "metadata": metadata,
             "transcript_source": transcript_data["source"],
-            "transcript": transcript_data["transcript"]
+            "transcript": transcript_data["transcript"],
+            "hook_text": hook_text
         }
 
 
