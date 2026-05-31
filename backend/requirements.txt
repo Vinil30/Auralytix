@@ -1,0 +1,13 @@
+sentence-transformers
+openai
+groq
+chromadb
+langchain-text-splitters
+langgraph
+fastapi
+uvicorn
+python-dotenv
+pydantic
+yt-dlp
+youtube-transcript-api
+instaloader
