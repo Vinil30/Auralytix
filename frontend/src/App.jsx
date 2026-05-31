@@ -620,6 +620,7 @@ export default function App() {
   const [error, setError] = useState("");
   const [modalState, setModalState] = useState({ isOpen: false, type: null, video: null });
   const chatInputRef = useRef(null);
+  const chatPanelRef = useRef(null);
   const messagesEndRef = useRef(null);
 
   const videoAData = analysisResult?.video_a_data || {};
@@ -627,7 +628,11 @@ export default function App() {
   const canAnalyze = useMemo(() => videoAUrl.trim() && videoBUrl.trim() && !isExtracting, [isExtracting, videoAUrl, videoBUrl]);
   const canSend = useMemo(() => sessionId && query.trim() && !isSending, [isSending, query, sessionId]);
 
-  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [messages, isSending]);
+  useEffect(() => {
+    if (messages.length > 0 || isSending) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    }
+  }, [messages, isSending]);
 
   async function handleAnalyze(event) {
     event.preventDefault(); setError(""); setIsExtracting(true);
@@ -690,6 +695,9 @@ export default function App() {
   function handlePrompt(p) {
     if (!sessionId || isSending) return;
     handleSend(null, p);
+  }
+  function scrollToChat() {
+    chatPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
   function handleResetAnalysis() { setSessionId(""); setAnalysisResult(null); setMessages([]); setQuery(""); setError(""); }
   function openTranscript(v) { setModalState({ isOpen: true, type: "transcript", video: v }); }
@@ -990,7 +998,35 @@ export default function App() {
           background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
         }
 
+        .scroll-cue {
+          margin: 24px auto 0;
+          border: 1px solid rgba(96,165,250,0.22);
+          background: linear-gradient(135deg,rgba(37,99,235,0.12),rgba(124,58,237,0.08));
+          color: #93C5FD;
+          border-radius: 999px;
+          padding: 8px 14px;
+          display: inline-flex;
+          align-items: center;
+          gap: 9px;
+          cursor: pointer;
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          box-shadow: 0 14px 40px rgba(37,99,235,0.12);
+        }
+        .scroll-cue-arrow {
+          display: inline-block;
+          font-size: 15px;
+          line-height: 1;
+          animation: cue-bounce 1.35s ease-in-out infinite;
+        }
+
         @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes cue-bounce {
+          0%, 100% { transform: translateY(-1px); opacity: 0.65; }
+          50% { transform: translateY(3px); opacity: 1; }
+        }
       `}</style>
 
       {/* Ambient depth layer */}
@@ -1042,6 +1078,17 @@ export default function App() {
 >
   Extract insights, compare performance, and get AI-powered recommendations for YouTube and Instagram content.
 </motion.p>
+          {!analysisResult && (
+            <motion.button
+              type="button"
+              variants={fadeUp}
+              onClick={scrollToChat}
+              className="scroll-cue"
+              aria-label="Scroll down to chat"
+            >
+              Chat below <span className="scroll-cue-arrow">↓</span>
+            </motion.button>
+          )}
         </motion.header>
 
         {/* â”€â”€ ERROR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
@@ -1145,11 +1192,11 @@ export default function App() {
                 </div>
               </motion.div>
             </motion.div>
-          )}
+            )}
         </AnimatePresence>
 
         {/* â”€â”€ CHAT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-        <motion.div variants={fadeUp} initial="initial" animate="animate">
+        <motion.div ref={chatPanelRef} variants={fadeUp} initial="initial" animate="animate">
           <div className="glow-card chatbot-panel" style={{ overflow: "hidden" }}>
             {/* Header */}
             <div style={{ padding: "18px 22px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -1237,4 +1284,3 @@ export default function App() {
     </>
   );
 }
-
