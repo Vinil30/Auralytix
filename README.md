@@ -29,6 +29,16 @@ The intended workflow is simple: paste two video URLs, run extraction, compare p
 
 Detailed discussion of these engineering decisions is included near the bottom of this README.
 
+
+### Engagement Rate Calculation
+
+In addition to raw platform metrics, Auralytix computes an engagement rate for Instagram content using:
+
+Engagement Rate (%) = ((Likes + Comments) / Views) × 100
+
+This provides a normalized measure of audience interaction that is more meaningful than raw counts alone. By converting engagement into a percentage, content from creators with different audience sizes can be compared more fairly, allowing stronger analysis of content effectiveness and audience response.
+
+
 ## Tech Stack
 
 | Layer | Tools |
