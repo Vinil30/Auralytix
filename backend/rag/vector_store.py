@@ -13,6 +13,23 @@ def get_collection(collection_name: str):
     """
     Return the requested ChromaDB collection.
     """
+    collection_aliases = {
+        "video_analytics": "social_content",
+        "video_metrics": "social_content",
+        "video_performance": "social_content",
+        "performance": "social_content",
+        "analytics": "social_content",
+        "metrics": "social_content",
+        "video_content": "social_content",
+        "transcripts": "social_content",
+        "transcript": "social_content",
+        "social_media": "social_content",
+    }
+
+    collection_name = collection_aliases.get(
+        collection_name,
+        collection_name
+    )
 
     if collection_name == "knowledge_base":
         return get_knowledge_collection()
@@ -118,7 +135,7 @@ def store_documents(
         for index in range(len(chunks))
     ]
 
-    collection.add(
+    collection.upsert(
         ids=ids,
         documents=chunks,
         embeddings=embeddings,
