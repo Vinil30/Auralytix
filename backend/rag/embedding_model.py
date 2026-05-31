@@ -1,20 +1,40 @@
-#Instead of loading the embedding model again and again, we are just loading it once through this file and reusing it.
+import hashlib
+import math
+import re
+from collections import Counter
 
-import os
 
-os.environ.setdefault("USE_TF", "0")
-os.environ.setdefault("TRANSFORMERS_NO_TF", "1")
+EMBEDDING_DIMENSIONS = 384
+TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
 
-_embedding_model = None
-def get_embedding_model():
-    global _embedding_model
 
-    if _embedding_model is None:
-        from sentence_transformers import SentenceTransformer
+def tokenize(text: str) -> list[str]:
+    return TOKEN_PATTERN.findall(text.lower())
 
-        _embedding_model = SentenceTransformer(
-            "BAAI/bge-small-en-v1.5"
-        )
-        print("[INFO] Embedding model loaded successfully.")
 
-    return _embedding_model
+def generate_hash_embedding(text: str) -> list[float]:
+    tokens = tokenize(text)
+
+    if not tokens:
+        return [0.0] * EMBEDDING_DIMENSIONS
+
+    vector = [0.0] * EMBEDDING_DIMENSIONS
+
+    for token, count in Counter(tokens).items():
+        digest = hashlib.blake2b(
+            token.encode("utf-8"),
+            digest_size=8
+        ).digest()
+        bucket = int.from_bytes(digest[:4], "big") % EMBEDDING_DIMENSIONS
+        sign = 1.0 if digest[4] & 1 else -1.0
+        vector[bucket] += sign * (1.0 + math.log(count))
+
+    magnitude = math.sqrt(sum(value * value for value in vector))
+
+    if magnitude == 0:
+        return vector
+
+    return [
+        value / magnitude
+        for value in vector
+    ]

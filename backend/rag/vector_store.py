@@ -2,7 +2,7 @@ from typing import Any, Dict, List
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from rag.embedding_model import get_embedding_model
+from rag.embedding_model import generate_hash_embedding
 from rag.chroma_client import (
     get_knowledge_collection,
     get_content_collection
@@ -76,15 +76,10 @@ def generate_embeddings(
             "Texts list cannot be empty."
         )
 
-    model = get_embedding_model()
-
-    embeddings = model.encode(
-        texts,
-        convert_to_numpy=True,
-        show_progress_bar=False
-    )
-
-    return embeddings.tolist()
+    return [
+        generate_hash_embedding(text)
+        for text in texts
+    ]
 
 
 def store_documents(

@@ -1,5 +1,7 @@
 import os
+import re
 import tempfile
+from urllib.parse import urlparse
 from datetime import datetime
 
 import instaloader
@@ -33,13 +35,38 @@ class InstagramExtractor:
     @staticmethod
     def extract_shortcode(url: str) -> str:
 
-        parts = url.strip("/").split("/")
+        parsed_url = urlparse(url)
+        path = parsed_url.path if parsed_url.netloc else url
+        parts = [
+            part
+            for part in path.strip("/").split("/")
+            if part
+        ]
 
-        if "reel" in parts:
-            return parts[parts.index("reel") + 1]
+        shortcode_markers = {
+            "p",
+            "reel",
+            "reels",
+            "tv"
+        }
 
-        if "p" in parts:
-            return parts[parts.index("p") + 1]
+        for marker in shortcode_markers:
+            if marker in parts:
+                marker_index = parts.index(marker)
+
+                if marker_index + 1 < len(parts):
+                    shortcode = parts[marker_index + 1]
+
+                    if shortcode:
+                        return shortcode
+
+        shortcode_match = re.search(
+            r"(?:/|^)(?:p|reel|reels|tv)/([^/?#]+)/?",
+            url
+        )
+
+        if shortcode_match:
+            return shortcode_match.group(1)
 
         raise ValueError("Unable to extract Instagram shortcode.")
 

@@ -290,7 +290,7 @@ const Modal = ({ isOpen, onClose, title, platform, children }) => {
           <motion.div onClick={onClose} variants={fadeIn} initial="initial" animate="animate" exit="exit"
             style={{ position: "fixed", inset: 0, background: "rgba(2,4,14,0.88)", backdropFilter: "blur(14px)", zIndex: 1000 }}/>
           <motion.div variants={popIn} initial="initial" animate="animate" exit="exit" style={{
-            position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
+            position: "fixed", top: "10vh", left: 0, right: 0, margin: "0 auto",
             width: "min(88vw,1100px)", height: "80vh",
             background: "linear-gradient(160deg,#0f1729 0%,#090d1a 100%)",
             borderRadius: "28px",

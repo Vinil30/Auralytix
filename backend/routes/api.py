@@ -6,18 +6,53 @@ from fastapi.responses import StreamingResponse
 
 from models import ExtractRequest, ChatRequest
 
-from graph import graph, traceable
-
 from utils.session_storage import session_store
-from utils.YouTubeExtraction import YouTubeExtractor
-from utils.InstagramExtraction import InstagramExtractor
-
-from rag.vector_store import store_documents
 
 router = APIRouter()
 
-youtube_extractor = YouTubeExtractor()
-instagram_extractor = InstagramExtractor()
+_youtube_extractor = None
+_instagram_extractor = None
+
+
+try:
+    from langsmith import traceable
+except ImportError:
+    def traceable(*args, **kwargs):
+        if args and callable(args[0]):
+            return args[0]
+
+        def decorator(func):
+            return func
+
+        return decorator
+
+
+def get_youtube_extractor():
+    global _youtube_extractor
+
+    if _youtube_extractor is None:
+        from utils.YouTubeExtraction import YouTubeExtractor
+
+        _youtube_extractor = YouTubeExtractor()
+
+    return _youtube_extractor
+
+
+def get_instagram_extractor():
+    global _instagram_extractor
+
+    if _instagram_extractor is None:
+        from utils.InstagramExtraction import InstagramExtractor
+
+        _instagram_extractor = InstagramExtractor()
+
+    return _instagram_extractor
+
+
+def get_chat_graph():
+    from graph import graph
+
+    return graph
 
 
 def summarize_extract_inputs(inputs: dict) -> dict:
@@ -34,6 +69,9 @@ def summarize_extract_inputs(inputs: dict) -> dict:
 
 
 def summarize_extract_outputs(output: dict) -> dict:
+
+    if not output:
+        return {}
 
     return {
         "session_id": output.get("session_id"),
@@ -84,21 +122,28 @@ def detect_platform(url: str) -> str:
 )
 def extract_video(url: str, label: str) -> dict:
 
-    platform = detect_platform(url)
+    try:
+        platform = detect_platform(url)
 
-    if platform == "youtube":
-        data = youtube_extractor.extract(url)
-        data["platform"] = "youtube"
+        if platform == "youtube":
+            data = get_youtube_extractor().extract(url)
+            data["platform"] = "youtube"
+            data["video_label"] = label
+            return data
+
+        data = get_instagram_extractor().extract(
+            url,
+            generate_transcript=True
+        )
+        data["platform"] = "instagram"
         data["video_label"] = label
         return data
 
-    data = instagram_extractor.extract(
-        url,
-        generate_transcript=True
-    )
-    data["platform"] = "instagram"
-    data["video_label"] = label
-    return data
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc)
+        ) from exc
 
 
 def get_video_text(video_data: dict) -> str:
@@ -138,6 +183,9 @@ def get_display_title(video_data: dict) -> str | None:
 
 
 def summarize_video_data(video_data: dict) -> dict:
+
+    if not video_data:
+        return {}
 
     metadata = video_data.get("metadata", {})
     text = get_video_text(video_data)
@@ -224,11 +272,15 @@ def get_client_video_data(video_data: dict) -> dict:
 
 @traceable(name="store_video_documents", run_type="retriever", process_inputs=lambda inputs: summarize_video_data(inputs["video_data"]))
 def store_video_documents(video_data: dict) -> None:
+    from rag.vector_store import store_documents
 
     text = get_video_text(video_data)
 
     if not text.strip():
-        return
+        return {
+            "stored": False,
+            "reason": "No text available to store."
+        }
 
     label = video_data["video_label"]
     metadata = video_data.get("metadata", {})
@@ -253,6 +305,13 @@ def store_video_documents(video_data: dict) -> None:
         text=text,
         metadata=chunk_metadata
     )
+
+    return {
+        "stored": True,
+        "collection_name": "social_content",
+        "document_id": label,
+        "chunk_metadata": chunk_metadata
+    }
 
 
 @router.post("/extract")
@@ -316,7 +375,7 @@ def chat(request: ChatRequest):
             detail="Session not found."
         )
 
-    result = graph.invoke(
+    result = get_chat_graph().invoke(
         {
             "session_id": request.session_id,
             "user_query": request.query
@@ -353,7 +412,7 @@ def chat_stream(request: ChatRequest):
             detail="Session not found."
         )
 
-    result = graph.invoke(
+    result = get_chat_graph().invoke(
         {
             "session_id": request.session_id,
             "user_query": request.query
