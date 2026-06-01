@@ -124,6 +124,8 @@ class YouTubeExtractor:
         ydl_opts = YouTubeExtractor.get_ytdlp_options({
             "skip_download": True,
             "extract_flat": False,
+            "noplaylist": True,
+            "ignore_no_formats_error": True,
         })
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -271,6 +273,7 @@ class YouTubeExtractor:
                 "subtitleslangs": ["en"],
                 "subtitlesformat": "vtt",
                 "outtmpl": output_template,
+                "ignore_no_formats_error": True,
             })
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
