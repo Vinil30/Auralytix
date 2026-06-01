@@ -7,13 +7,44 @@ const api = axios.create({
   }
 });
 
-export async function extractContent(videoAUrl, videoBUrl) {
-  const response = await api.post("/extract", {
-    video_a_url: videoAUrl,
-    video_b_url: videoBUrl
-  });
+function getApiErrorMessage(error, fallback) {
+  const detail = error.response?.data?.detail;
 
-  return response.data;
+  if (Array.isArray(detail)) {
+    return detail
+      .map(item => item.msg || item.message)
+      .filter(Boolean)
+      .join(" ");
+  }
+
+  if (typeof detail === "string") {
+    return detail;
+  }
+
+  if (error.response?.data?.message) {
+    return error.response.data.message;
+  }
+
+  if (!error.response) {
+    return "The backend is unreachable. Check that the Render service is running and that VITE_API_BASE_URL points to it.";
+  }
+
+  return fallback;
+}
+
+export async function extractContent(videoAUrl, videoBUrl) {
+  try {
+    const response = await api.post("/extract", {
+      video_a_url: videoAUrl,
+      video_b_url: videoBUrl
+    });
+
+    return response.data;
+  } catch (error) {
+    throw new Error(
+      getApiErrorMessage(error, "Unable to extract content.")
+    );
+  }
 }
 
 export async function sendMessageStream(sessionId, query, handlers = {}) {
@@ -30,7 +61,16 @@ export async function sendMessageStream(sessionId, query, handlers = {}) {
   });
 
   if (!response.ok || !response.body) {
-    throw new Error("Unable to stream response.");
+    let message = "Unable to stream response.";
+
+    try {
+      const payload = await response.json();
+      message = payload.detail || payload.message || message;
+    } catch {
+      // Keep the generic message if the backend did not return JSON.
+    }
+
+    throw new Error(message);
   }
 
   const reader = response.body.getReader();
