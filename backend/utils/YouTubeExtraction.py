@@ -22,6 +22,8 @@ class YouTubeExtractor:
 
     @staticmethod
     def get_ytdlp_options(extra_options: dict | None = None) -> dict:
+        cookie_file = YouTubeExtractor.get_ytdlp_cookie_file()
+
         options = {
             "quiet": True,
             "retries": 3,
@@ -36,10 +38,40 @@ class YouTubeExtractor:
             }
         }
 
+        if cookie_file:
+            options["cookiefile"] = cookie_file
+
         if extra_options:
             options.update(extra_options)
 
         return options
+
+    @staticmethod
+    def get_ytdlp_cookie_file() -> str | None:
+        cookie_file = os.getenv("YOUTUBE_COOKIES_FILE")
+
+        if cookie_file:
+            return cookie_file
+
+        cookie_content = os.getenv("YOUTUBE_COOKIES_CONTENT")
+
+        if not cookie_content:
+            return None
+
+        cookie_path = os.path.join(
+            tempfile.gettempdir(),
+            "youtube_cookies.txt"
+        )
+        normalized_cookie_content = cookie_content.replace("\\n", "\n")
+
+        with open(
+            cookie_path,
+            "w",
+            encoding="utf-8"
+        ) as cookie_handle:
+            cookie_handle.write(normalized_cookie_content)
+
+        return cookie_path
 
     # ============================================================
     # VIDEO ID EXTRACTION

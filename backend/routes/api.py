@@ -144,6 +144,11 @@ def extract_video(url: str, label: str) -> dict:
             status_code=400,
             detail=str(exc)
         ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Video {label} extraction failed: {exc}"
+        ) from exc
 
 
 def get_video_text(video_data: dict) -> str:
@@ -153,9 +158,16 @@ def get_video_text(video_data: dict) -> str:
     if transcript:
         return transcript
 
-    return (
-        video_data.get("metadata", {}).get("caption")
-        or ""
+    metadata = video_data.get("metadata", {})
+
+    return " ".join(
+        part
+        for part in [
+            metadata.get("caption"),
+            metadata.get("description"),
+            metadata.get("title")
+        ]
+        if part
     )
 
 
@@ -346,8 +358,15 @@ def extract_content(request: ExtractRequest):
         instagram_data=video_b_data
     )
 
-    store_video_documents(video_a_data)
-    store_video_documents(video_b_data)
+    storage_warnings = []
+
+    for video_data in [video_a_data, video_b_data]:
+        try:
+            store_video_documents(video_data)
+        except Exception as exc:
+            storage_warnings.append(
+                f"Video {video_data.get('video_label')} was extracted but not stored for chat retrieval: {exc}"
+            )
 
     return {
         "session_id": session_id,
@@ -358,7 +377,8 @@ def extract_content(request: ExtractRequest):
         "youtube_title": get_display_title(video_a_data),
         "instagram_shortcode": get_display_title(video_b_data),
         "video_a_data": get_client_video_data(video_a_data),
-        "video_b_data": get_client_video_data(video_b_data)
+        "video_b_data": get_client_video_data(video_b_data),
+        "warnings": storage_warnings
     }
 
 
