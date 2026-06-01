@@ -23,9 +23,13 @@ class InstagramExtractor:
         )
 
         self.groq_api_key = groq_api_key or os.getenv("GROQ_API_KEY")
+        self.enable_whisper_fallback = (
+            os.getenv("ENABLE_WHISPER_FALLBACK", "false").lower()
+            == "true"
+        )
 
         self.client = None
-        if self.groq_api_key:
+        if self.groq_api_key and self.enable_whisper_fallback:
             self.client = Groq(api_key=self.groq_api_key)
 
     # ============================================================
@@ -150,7 +154,17 @@ class InstagramExtractor:
         ydl_opts = {
             "quiet": True,
             "outtmpl": output_template,
-            "format": "best"
+            "format": "best",
+            "retries": 3,
+            "extractor_retries": 3,
+            "socket_timeout": 20,
+            "http_headers": {
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/125.0 Safari/537.36"
+                )
+            }
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -224,17 +238,26 @@ class InstagramExtractor:
         result = {
             "metadata": metadata,
             "transcript": None,
+            "transcript_source": None,
             "transcript_available": False
         }
 
-        if generate_transcript:
+        if generate_transcript and self.enable_whisper_fallback:
 
-            transcript = self.transcript_extraction(
-                instagram_url
-            )
+            try:
+                transcript = self.transcript_extraction(
+                    instagram_url
+                )
+            except Exception as transcript_error:
+                print(
+                    "Instagram transcript unavailable. "
+                    f"Continuing with metadata only. Reason: {transcript_error}"
+                )
+                return result
 
             result["transcript"] = transcript
             result["hook_text"] = transcript[:500]
+            result["transcript_source"] = "groq_whisper"
             result["transcript_available"] = True
 
         return result

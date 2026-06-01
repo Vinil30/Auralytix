@@ -11,10 +11,35 @@ class YouTubeExtractor:
 
     def __init__(self, groq_api_key=None):
         self.groq_api_key = groq_api_key or os.getenv("GROQ_API_KEY")
+        self.enable_whisper_fallback = (
+            os.getenv("ENABLE_WHISPER_FALLBACK", "false").lower()
+            == "true"
+        )
 
         self.client = None
-        if self.groq_api_key:
+        if self.groq_api_key and self.enable_whisper_fallback:
             self.client = Groq(api_key=self.groq_api_key)
+
+    @staticmethod
+    def get_ytdlp_options(extra_options: dict | None = None) -> dict:
+        options = {
+            "quiet": True,
+            "retries": 3,
+            "extractor_retries": 3,
+            "socket_timeout": 20,
+            "http_headers": {
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/125.0 Safari/537.36"
+                )
+            }
+        }
+
+        if extra_options:
+            options.update(extra_options)
+
+        return options
 
     # ============================================================
     # VIDEO ID EXTRACTION
@@ -44,11 +69,10 @@ class YouTubeExtractor:
     @staticmethod
     def metadata_extraction(video_url: str) -> dict:
 
-        ydl_opts = {
-            "quiet": True,
+        ydl_opts = YouTubeExtractor.get_ytdlp_options({
             "skip_download": True,
             "extract_flat": False,
-        }
+        })
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(video_url, download=False)
@@ -121,6 +145,104 @@ class YouTubeExtractor:
         return hook_text or None
 
     # ============================================================
+    # YT-DLP AUTO SUBTITLE FALLBACK
+    # ============================================================
+
+    @staticmethod
+    def clean_subtitle_text(subtitle_text: str) -> str:
+
+        subtitle_text = re.sub(
+            r"WEBVTT.*?Kind: captions",
+            "",
+            subtitle_text,
+            flags=re.DOTALL
+        )
+        subtitle_text = re.sub(
+            r"\d{2}:\d{2}:\d{2}\.\d{3}\s+-->\s+\d{2}:\d{2}:\d{2}\.\d{3}.*",
+            "",
+            subtitle_text
+        )
+        subtitle_text = re.sub(
+            r"<[^>]+>",
+            "",
+            subtitle_text
+        )
+        subtitle_text = re.sub(
+            r"^\s*(align|position):.*$",
+            "",
+            subtitle_text,
+            flags=re.MULTILINE
+        )
+
+        lines = [
+            line.strip()
+            for line in subtitle_text.splitlines()
+            if line.strip()
+        ]
+
+        deduped_lines = []
+        previous_line = None
+
+        for line in lines:
+            if line != previous_line:
+                deduped_lines.append(line)
+            previous_line = line
+
+        return " ".join(deduped_lines).strip()
+
+    @staticmethod
+    def subtitle_file_to_text(subtitle_path: str) -> str:
+
+        with open(
+            subtitle_path,
+            "r",
+            encoding="utf-8",
+            errors="ignore"
+        ) as subtitle_file:
+            subtitle_text = subtitle_file.read()
+
+        return YouTubeExtractor.clean_subtitle_text(subtitle_text)
+
+    @staticmethod
+    def subtitle_extraction(video_url: str) -> str:
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_template = os.path.join(
+                temp_dir,
+                "%(id)s.%(ext)s"
+            )
+
+            ydl_opts = YouTubeExtractor.get_ytdlp_options({
+                "skip_download": True,
+                "writesubtitles": True,
+                "writeautomaticsub": True,
+                "subtitleslangs": ["en"],
+                "subtitlesformat": "vtt",
+                "outtmpl": output_template,
+            })
+
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.extract_info(video_url, download=True)
+
+            subtitle_paths = [
+                os.path.join(temp_dir, file_name)
+                for file_name in os.listdir(temp_dir)
+                if file_name.endswith(".vtt")
+            ]
+
+            if not subtitle_paths:
+                raise ValueError("No English subtitles found with yt-dlp.")
+
+            subtitle_text = YouTubeExtractor.subtitle_file_to_text(
+                subtitle_paths[0]
+            )
+
+            if not subtitle_text:
+                raise ValueError("Downloaded subtitles were empty.")
+
+            return subtitle_text
+
+    # ============================================================
     # FALLBACK STARTS -----  AUDIO DOWNLOAD
     # ============================================================
 
@@ -132,12 +254,11 @@ class YouTubeExtractor:
             "%(id)s.%(ext)s"
         )
 
-        ydl_opts = {
-            "format": "bestaudio/best",
+        ydl_opts = YouTubeExtractor.get_ytdlp_options({
             "outtmpl": output_template,
-            "quiet": True,
             "noplaylist": True,
-        }
+            "format": "bestaudio/best",
+        })
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
 
@@ -190,15 +311,35 @@ class YouTubeExtractor:
 
             print(
                 f"Transcript API failed. "
-                f"Using Whisper fallback.\n"
+                f"Trying yt-dlp auto subtitles.\n"
                 f"Reason: {transcript_error}"
             )
+
+            try:
+                transcript = self.subtitle_extraction(video_url)
+
+                return {
+                    "source": "yt_dlp_auto_subtitles",
+                    "transcript": transcript
+                }
+            except Exception as subtitle_error:
+                print(
+                    "yt-dlp subtitles failed. "
+                    f"Whisper fallback enabled: {self.enable_whisper_fallback}.\n"
+                    f"Reason: {subtitle_error}"
+                )
+
+            if not self.enable_whisper_fallback:
+                raise RuntimeError(
+                    "YouTube transcript API and yt-dlp subtitles failed. "
+                    "Whisper fallback is disabled."
+                ) from transcript_error
 
             if not self.client:
                 raise RuntimeError(
                     "Transcript API failed and "
                     "Groq client is unavailable."
-                )
+                ) from transcript_error
 
             with tempfile.TemporaryDirectory() as temp_dir:
 
@@ -220,20 +361,33 @@ class YouTubeExtractor:
     def extract(self, video_url: str) -> dict:
 
         metadata = self.metadata_extraction(video_url)
+        transcript_data = {
+            "source": None,
+            "transcript": None
+        }
 
-        transcript_data = self.get_transcript(video_url)
+        try:
+            transcript_data = self.get_transcript(video_url)
+        except Exception as transcript_error:
+            print(
+                "YouTube transcript unavailable. "
+                f"Continuing with metadata only. Reason: {transcript_error}"
+            )
+
         hook_text = None
 
         try:
             hook_text = self.hook_extraction(video_url)
         except Exception:
-            hook_text = transcript_data["transcript"][:500]
+            transcript = transcript_data.get("transcript") or ""
+            hook_text = transcript[:500] or None
 
         return {
             "metadata": metadata,
-            "transcript_source": transcript_data["source"],
-            "transcript": transcript_data["transcript"],
-            "hook_text": hook_text
+            "transcript_source": transcript_data.get("source"),
+            "transcript": transcript_data.get("transcript"),
+            "hook_text": hook_text,
+            "transcript_available": bool(transcript_data.get("transcript"))
         }
 
 

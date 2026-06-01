@@ -8,7 +8,7 @@ The intended workflow is simple: paste two video URLs, run extraction, compare p
 
 - YouTube and Instagram extraction
 - Metadata capture for views, likes, comments, engagement, duration, upload date, and creator details
-- YouTube transcript extraction with Whisper fallback
+- YouTube transcript extraction with yt-dlp auto-subtitle fallback and optional Whisper fallback
 - Instagram metadata-first extraction with optional Whisper transcription
 - Hook extraction for early-video analysis
 - Session-aware chatbot for follow-up analysis
@@ -200,7 +200,7 @@ flowchart TD
 
 ## YouTube Extraction Flow
 
-YouTube uses a transcript-first pipeline. Captions are preferred because they are fast and cheap. If captions are missing or blocked, the system downloads audio temporarily and transcribes it with Whisper.
+YouTube uses a transcript-first pipeline. Captions are preferred because they are fast and cheap. If the transcript API is unavailable, the system tries yt-dlp auto-subtitles before using the optional Whisper fallback.
 
 ```mermaid
 flowchart TD
@@ -208,17 +208,20 @@ flowchart TD
     B --> C[Fetch metadata with yt-dlp]
     B --> D[Try youtube-transcript-api]
     D -->|Success| E[Transcript text]
-    D -->|Fails| F[Download audio to temp directory]
-    F --> G[Groq Whisper transcription]
-    G --> E
-    E --> H[Extract hook from first seconds]
-    H --> I[Return metadata, transcript, hook, source]
+    D -->|Fails| F[Try yt-dlp auto-subtitles]
+    F -->|Success| E
+    F -->|Fails and enabled| G[Download audio to temp directory]
+    G --> H[Groq Whisper transcription]
+    H --> E
+    E --> I[Extract hook from first seconds]
+    I --> J[Return metadata, transcript, hook, source]
 ```
 
 Why this matters:
 
 - Captions keep normal requests fast.
-- Whisper fallback avoids hard failure when captions are disabled.
+- yt-dlp auto-subtitles provide a free fallback when the transcript API is blocked or unavailable.
+- Whisper fallback is optional and only used when explicitly enabled.
 - Temporary files prevent media storage buildup.
 - Hook extraction supports better opening-line and retention analysis.
 
@@ -481,7 +484,7 @@ What makes it unique:
 # The solution:
 Each platform has a primary method and a fallback path.
 
--YouTube: Captions (fast/cheap) → Whisper transcription (reliable fallback)
+-YouTube: Transcript API (fast/cheap) -> yt-dlp auto-subtitles (free fallback) -> optional Whisper transcription
 -Instagram: Metadata first → Whisper only when deep analysis requested
 
 # What makes this unique: 
