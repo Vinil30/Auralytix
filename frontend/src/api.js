@@ -2,6 +2,7 @@ import axios from "axios";
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || "",
+  timeout: 120000,
   headers: {
     "Content-Type": "application/json"
   }
@@ -26,6 +27,10 @@ function getApiErrorMessage(error, fallback) {
   }
 
   if (!error.response) {
+    if (error.code === "ECONNABORTED") {
+      return "Extraction is taking too long. Please try again with shorter videos or retry after the backend finishes warming up.";
+    }
+
     return "The backend is unreachable. Check that the Render service is running and that VITE_API_BASE_URL points to it.";
   }
 

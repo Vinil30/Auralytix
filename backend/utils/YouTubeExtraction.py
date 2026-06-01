@@ -431,11 +431,10 @@ class YouTubeExtractor:
 
         hook_text = None
 
-        try:
-            hook_text = self.hook_extraction(video_url)
-        except Exception:
-            transcript = transcript_data.get("transcript") or ""
-            hook_text = transcript[:500] or None
+        transcript = transcript_data.get("transcript") or ""
+
+        if transcript:
+            hook_text = transcript[:500]
 
         return {
             "metadata": metadata,
