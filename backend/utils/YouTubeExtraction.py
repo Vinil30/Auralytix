@@ -51,7 +51,27 @@ class YouTubeExtractor:
         cookie_file = os.getenv("YOUTUBE_COOKIES_FILE")
 
         if cookie_file:
-            return cookie_file
+            cookie_path = os.path.join(
+                tempfile.gettempdir(),
+                "youtube_cookies.txt"
+            )
+
+            with open(
+                cookie_file,
+                "r",
+                encoding="utf-8",
+                errors="ignore"
+            ) as source_cookie_file:
+                cookie_content = source_cookie_file.read()
+
+            with open(
+                cookie_path,
+                "w",
+                encoding="utf-8"
+            ) as runtime_cookie_file:
+                runtime_cookie_file.write(cookie_content)
+
+            return cookie_path
 
         cookie_content = os.getenv("YOUTUBE_COOKIES_CONTENT")
 
